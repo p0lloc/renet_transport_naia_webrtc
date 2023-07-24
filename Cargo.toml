@@ -1,0 +1,4 @@
+[workspace]
+members = ["renet-transport-naia-webrtc-server", "renet-transport-naia-webrtc-client"]
+resolver = "2"
+
