@@ -1,34 +1,12 @@
-use std::{net::SocketAddr, time::Duration};
+use std::time::Duration;
 
-use naia_client_socket::{
+pub use naia_client_socket::{
     shared::SocketConfig, NaiaClientSocketError, PacketReceiver, PacketSender, Socket,
 };
 use renet::{transport::NetcodeTransportError, RenetClient};
-use renetcode::{
-    ConnectToken, DisconnectReason, NetcodeClient, NetcodeError, NETCODE_KEY_BYTES,
-    NETCODE_USER_DATA_BYTES,
-};
+use renetcode::{ClientAuthentication, DisconnectReason, NetcodeClient, NetcodeError};
 
 pub use naia_client_socket;
-
-/// Configuration to establish an secure or unsecure connection with the server.
-#[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum ClientAuthentication {
-    /// Establishes a safe connection with the server using the [crate::transport::ConnectToken].
-    ///
-    /// See also [crate::transport::ServerAuthentication::Secure]
-    Secure { connect_token: ConnectToken },
-    /// Establishes an unsafe connection with the server, useful for testing and prototyping.
-    ///
-    /// See also [crate::transport::ServerAuthentication::Unsecure]
-    Unsecure {
-        protocol_id: u64,
-        client_id: u64,
-        server_addr: SocketAddr,
-        user_data: Option<[u8; NETCODE_USER_DATA_BYTES]>,
-    },
-}
 
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::system::Resource))]
 pub struct NetcodeWebRtcClientTransport {
@@ -61,26 +39,8 @@ impl NetcodeWebRtcClientTransport {
         authentication: ClientAuthentication,
     ) -> Result<Self, NetcodeError> {
         let (packet_sender, packet_receiver) = Socket::connect(server_url, socket_config);
-        let connect_token: ConnectToken = match authentication {
-            ClientAuthentication::Unsecure {
-                server_addr,
-                protocol_id,
-                client_id,
-                user_data,
-            } => ConnectToken::generate(
-                current_time,
-                protocol_id,
-                300,
-                client_id,
-                15,
-                vec![server_addr],
-                user_data.as_ref(),
-                &[0; NETCODE_KEY_BYTES],
-            )?,
-            ClientAuthentication::Secure { connect_token } => connect_token,
-        };
 
-        let netcode_client = NetcodeClient::new(current_time, connect_token);
+        let netcode_client = NetcodeClient::new(current_time, authentication)?;
 
         Ok(Self {
             packet_sender,

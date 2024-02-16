@@ -3,8 +3,10 @@ use std::{net::SocketAddr, time::Duration};
 use naia_server_socket::{
     shared::SocketConfig, NaiaServerSocketError, PacketReceiver, PacketSender, ServerAddrs, Socket,
 };
-use renet::{transport::NetcodeTransportError, RenetServer};
-use renetcode::{NetcodeServer, ServerResult, NETCODE_KEY_BYTES, NETCODE_USER_DATA_BYTES};
+use renet::{transport::NetcodeTransportError, ClientId, RenetServer};
+use renetcode::{
+    NetcodeServer, ServerConfig, ServerResult, NETCODE_KEY_BYTES, NETCODE_USER_DATA_BYTES,
+};
 
 pub use naia_server_socket;
 
@@ -24,22 +26,6 @@ pub enum ServerAuthentication {
     Unsecure,
 }
 
-/// Configuration options for the server transport.
-#[derive(Debug)]
-pub struct ServerConfig {
-    /// Maximum numbers of clients that can be connected at a time
-    pub max_clients: usize,
-    /// Unique identifier to this game/application
-    /// One could use a hash function with the game current version to generate this value.
-    /// So old version would be unable to connect to newer versions.
-    pub protocol_id: u64,
-    /// Publicly available address that clients will try to connect to. This is
-    /// the address used to generate the ConnectToken when using the secure authentication.
-    pub public_addr: SocketAddr,
-    /// Authentication configuration for the server
-    pub authentication: ServerAuthentication,
-}
-
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::system::Resource))]
 pub struct NetcodeWebRtcServerTransport {
     netcode_server: NetcodeServer,
@@ -51,26 +37,12 @@ pub struct NetcodeWebRtcServerTransport {
 impl NetcodeWebRtcServerTransport {
     pub fn new(
         server_addresses: &ServerAddrs,
-
-        current_time: Duration,
         server_config: ServerConfig,
     ) -> Result<Self, std::io::Error> {
         let (packet_sender, packet_receiver) =
             Socket::listen(&server_addresses, &SocketConfig::new(None, None));
 
-        // For unsecure connections we use an fixed private key.
-        let private_key = match server_config.authentication {
-            ServerAuthentication::Unsecure => [0; NETCODE_KEY_BYTES],
-            ServerAuthentication::Secure { private_key } => private_key,
-        };
-
-        let netcode_server = NetcodeServer::new(
-            current_time,
-            server_config.max_clients,
-            server_config.protocol_id,
-            server_config.public_addr,
-            private_key,
-        );
+        let netcode_server = NetcodeServer::new(server_config);
 
         Ok(Self {
             netcode_server,
@@ -80,8 +52,8 @@ impl NetcodeWebRtcServerTransport {
         })
     }
 
-    pub fn addr(&self) -> SocketAddr {
-        self.netcode_server.address()
+    pub fn addresses(&self) -> Vec<SocketAddr> {
+        self.netcode_server.addresses()
     }
 
     pub fn max_clients(&self) -> usize {
@@ -141,7 +113,7 @@ impl NetcodeWebRtcServerTransport {
         }
 
         for disconnection_id in server.disconnections_id() {
-            let server_result = self.netcode_server.disconnect(disconnection_id);
+            let server_result = self.netcode_server.disconnect(disconnection_id.raw());
             handle_server_result(server_result, &self.packet_sender, server);
         }
 
@@ -155,7 +127,7 @@ impl NetcodeWebRtcServerTransport {
             for packet in packets {
                 match self
                     .netcode_server
-                    .generate_payload_packet(client_id, &packet)
+                    .generate_payload_packet(client_id.raw(), &packet)
                 {
                     Ok((addr, payload)) => {
                         if let Err(e) = send_packet(&self.packet_sender, payload, &addr) {
@@ -192,6 +164,7 @@ fn handle_server_result(
             send_packet(payload, addr);
         }
         ServerResult::Payload { client_id, payload } => {
+            let client_id = ClientId::from_raw(client_id);
             if let Err(e) = reliable_server.process_packet_from(payload, client_id) {
                 log::error!("Error while processing payload for {}: {}", client_id, e);
             }
@@ -202,6 +175,7 @@ fn handle_server_result(
             addr,
             payload,
         } => {
+            let client_id = ClientId::from_raw(client_id);
             reliable_server.add_connection(client_id);
             send_packet(payload, addr);
         }
@@ -210,6 +184,7 @@ fn handle_server_result(
             addr,
             payload,
         } => {
+            let client_id = ClientId::from_raw(client_id);
             reliable_server.remove_connection(client_id);
             if let Some(payload) = payload {
                 send_packet(payload, addr);
