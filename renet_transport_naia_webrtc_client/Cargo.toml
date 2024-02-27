@@ -1,6 +1,6 @@
 [package]
 name = "renet_transport_naia_webrtc_client"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,8 +9,8 @@ edition = "2021"
 bevy = ["dep:bevy_ecs"]
 
 [dependencies]
-renet = "0.0.14"
-renetcode = "0.0.10"
+renet = "0.0.15"
+renetcode = "0.0.11"
 log = "0.4.17"
 naia-client-socket = { version="0.22.0", features = ["wbindgen"] }
 
