@@ -1,4 +1,4 @@
 [workspace]
-members = ["renet_transport_naia_webrtc_server", "renet_transport_naia_webrtc_client"]
+members = ["bevy_renet_transport_naia_webrtc","renet_transport_naia_webrtc_server", "renet_transport_naia_webrtc_client"]
 resolver = "2"
 
