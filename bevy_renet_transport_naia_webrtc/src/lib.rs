@@ -14,15 +14,15 @@ impl Plugin for NetcodeWebRtcClientPlugin {
         app.add_systems(
             PreUpdate,
             Self::update_system
-                .run_if(resource_exists::<NetcodeWebRtcClientTransport>())
-                .run_if(resource_exists::<RenetClient>())
+                .run_if(resource_exists::<NetcodeWebRtcClientTransport>(None))
+                .run_if(resource_exists::<RenetClient>(None))
                 .after(RenetClientPlugin::update_system),
         );
         app.add_systems(
             PostUpdate,
             (Self::send_packets, Self::disconnect_on_exit)
-                .run_if(resource_exists::<NetcodeWebRtcClientTransport>())
-                .run_if(resource_exists::<RenetClient>()),
+                .run_if(resource_exists::<NetcodeWebRtcClientTransport>(None))
+                .run_if(resource_exists::<RenetClient>(None)),
         );
     }
 }
